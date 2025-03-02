@@ -1,26 +1,20 @@
 import os
-from kafka import KafkaProducer
+import time
 import json
+from kafka import KafkaProducer, errors as kafka_errors
 
+def create_producer(max_retries=5, retry_interval=5):
+    bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    for attempt in range(max_retries):
+        try:
+            producer = KafkaProducer(
+                bootstrap_servers=bootstrap_servers,
+                value_serializer=lambda v: json.dumps(v).encode("utf-8")
+            )
+            return producer
+        except kafka_errors.NoBrokersAvailable as e:
+            print(f"Kafka broker not available, retrying in {retry_interval} seconds...")
+            time.sleep(retry_interval)
+    raise Exception("Kafka broker is not available after retries.")
 
-class OrderProducer:
-    def __init__(self,topic="orders"):
-        self.producer = KafkaProducer(
-            bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
-            value_serializer=lambda v: json.dumps(v).encode('utf-8')
-        )
-        self.topic = topic
-        
-    def send_order(self,order):
-        self.producer.send(self.topic, order)
-        self.producer.flush()
-        print(f"Order sent: {order}")
-    
-if __name__ == "__main__":
-    producer = OrderProducer()
-    sample_order = {
-        "symbol": "FAKE", 
-        "action": "BUY", 
-        "price": 105.25
-    }
-    producer.send_order(sample_order)
+producer = create_producer()
