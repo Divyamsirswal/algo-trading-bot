@@ -1,26 +1,75 @@
+import csv
+import json
 import asyncio
 import websockets
-import json
-import logging
+from fastapi import FastAPI
 
-logging.basicConfig(level=logging.INFO)
+app = FastAPI()
+ORDERS_FILE = "orders.json"
 
-async def connect_stock_api():
-    uri = "ws://localhost:6789" 
-    while True:
-        try:
-            async with websockets.connect(uri) as websocket:
-                logging.info("Connected to stock API.")
-                while True:
-                    message = await websocket.recv()
-                    data = json.loads(message)
-                    logging.info(f"Received data: {data}")
-        except (websockets.ConnectionClosedError, websockets.InvalidURI) as e:
-            logging.error(f"WebSocket connection error: {e}. Retrying in 5 seconds...")
-            await asyncio.sleep(5)  
-        except Exception as e:
-            logging.error(f"Unexpected error: {e}. Retrying in 5 seconds...")
-            await asyncio.sleep(5)
+# --- Trading Logic ---
+class TradingStrategy:
+    def __init__(self, short_window=3, long_window=5):
+        self.short_window = short_window
+        self.long_window = long_window
+        self.prices = []
+
+    def generate_signal(self, price):
+        self.prices.append(price)
+        if len(self.prices) > self.long_window:
+            self.prices.pop(0)
+        
+        if len(self.prices) < self.long_window:
+            return None
+
+        short_avg = sum(self.prices[-self.short_window:]) / self.short_window
+        long_avg = sum(self.prices) / self.long_window
+        
+        if short_avg > long_avg:
+            return "BUY"
+        elif short_avg < long_avg:
+            return "SELL"
+        return None
+
+strategy = TradingStrategy()
+
+# --- Store Orders in JSON File ---
+def save_order(order):
+    try:
+        with open(ORDERS_FILE, "r") as f:
+            orders = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        orders = []
+    
+    orders.append(order)
+    with open(ORDERS_FILE, "w") as f:
+        json.dump(orders, f, indent=4)
+
+@app.get("/")
+def read_root():
+    return {"message": "Algorithmic Trading Bot Running"}
+
+@app.get("/orders")
+def get_orders():
+    try:
+        with open(ORDERS_FILE, "r") as f:
+            orders = json.load(f)
+        return orders
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: websockets.WebSocketServerProtocol):
+    await websocket.accept()
+    async for message in websocket:
+        data = json.loads(message)
+        price = data["price"]
+        signal = strategy.generate_signal(price)
+        if signal:
+            order = {"price": price, "signal": signal}
+            save_order(order)
+            await websocket.send(json.dumps(order))
 
 if __name__ == "__main__":
-    asyncio.run(connect_stock_api())
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)

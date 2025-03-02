@@ -1,91 +1,81 @@
-import asyncio
+import csv
 import json
-import logging
-import os
-
-from fastapi import FastAPI
+import asyncio
 import websockets
-
-from app.trading_logic import TradingStrategy
-from app.redis_client import RedisLogger
-from app.kafka_producer import OrderProducer  # We'll use OrderProducer here
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("app.log", mode="a")
-    ]
-)
-logger = logging.getLogger("TradingBot")
+from fastapi import FastAPI, WebSocket
 
 app = FastAPI()
+ORDERS_FILE = "app/orders.json"
 
-# Global objects
+# --- Trading Logic ---
+class TradingStrategy:
+    def __init__(self, short_window=3, long_window=5):
+        self.short_window = short_window
+        self.long_window = long_window
+        self.prices = []
+
+    def generate_signal(self, price):
+        self.prices.append(price)
+        if len(self.prices) > self.long_window:
+            self.prices.pop(0)
+        
+        if len(self.prices) < self.long_window:
+            return None
+
+        short_avg = sum(self.prices[-self.short_window:]) / self.short_window
+        long_avg = sum(self.prices) / self.long_window
+        
+        if short_avg > long_avg:
+            return "BUY"
+        elif short_avg < long_avg:
+            return "SELL"
+        return None
+
 strategy = TradingStrategy()
-logger_redis = RedisLogger()
-kafka_producer = None  # Will be initialized on startup
 
-async def process_stock_data():
-    """
-    Connects to the dummy stock server, processes incoming data,
-    applies trading logic, sends orders to Kafka, and logs them in Redis.
-    """
-    uri = "ws://localhost:6789"  # Dummy stock server endpoint; update if needed.
-    while True:
-        try:
-            async with websockets.connect(uri) as websocket:
-                logger.info("Connected to stock API.")
-                while True:
-                    message = await websocket.recv()
-                    data = json.loads(message)
-                    price = data.get("price")
-                    if price is not None:
-                        signal = strategy.generate_signal(price)
-                        if signal:
-                            order = {
-                                "symbol": data.get("symbol"),
-                                "action": signal,
-                                "price": price,
-                                "timestamp": data.get("timestamp")
-                            }
-                            if kafka_producer:
-                                kafka_producer.send_order(order)
-                            logger_redis.log_order(order)
-                    await asyncio.sleep(0.1)
-        except Exception as e:
-            logger.error(f"Error in process_stock_data: {e}. Retrying in 5 seconds...")
-            await asyncio.sleep(5)
-
-@app.on_event("startup")
-async def startup_event():
-    """
-    On startup:
-      1. Create the Kafka producer using the OrderProducer (which now reads the environment variable).
-      2. Start the background task for processing stock data.
-    """
-    global kafka_producer
+# --- Store Orders in JSON File ---
+def save_order(order):
     try:
-        kafka_producer = OrderProducer()
-        logger.info("Kafka producer created successfully.")
-    except Exception as ex:
-        logger.error(f"Failed to create Kafka producer: {ex}")
-    asyncio.create_task(process_stock_data())
+        with open(ORDERS_FILE, "r") as f:
+            orders = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        orders = []
+    
+    orders.append(order)
+    with open(ORDERS_FILE, "w") as f:
+        json.dump(orders, f, indent=4)
 
 @app.get("/")
 def read_root():
-    return {"message": "Trading Bot is Running!"}
+    return {"message": "Algorithmic Trading Bot Running"}
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+@app.get("/orders")
+def get_orders():
+    try:
+        with open(ORDERS_FILE, "r") as f:
+            orders = json.load(f)
+        return orders
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
 
-@app.get("/send-test")
-def send_test():
-    if kafka_producer:
-        kafka_producer.send_order({"msg": "Hello from /send-test!"})
-        return {"status": "Message sent to Kafka"}
-    else:
-        return {"error": "Kafka producer not initialized"}
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            stock_data = json.loads(data)
+            price = stock_data["price"]
+            signal = strategy.generate_signal(price)
+            if signal:
+                order = {"price": price, "signal": signal}
+                save_order(order)
+                await websocket.send_text(json.dumps(order))
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        await websocket.close()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
