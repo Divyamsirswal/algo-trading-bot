@@ -1,7 +1,4 @@
-version: "3.9"
-
 services:
-  # 1. Zookeeper
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     environment:
@@ -10,7 +7,6 @@ services:
     ports:
       - "2181:2181"
 
-  # 2. Kafka
   kafka:
     image: confluentinc/cp-kafka:latest
     depends_on:
@@ -26,13 +22,11 @@ services:
       - "9092:9092"
       - "29092:29092"
 
-  # 3. Redis
   redis:
     image: redis:latest
     ports:
       - "6380:6379"
 
-  # 4. FastAPI App
   app:
     build:
       context: .
@@ -42,10 +36,9 @@ services:
       - redis
     ports:
       - "8000:8000"
-    # environment: 
-    #   - ENV_VAR=production  # example if you have environment variables
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
 
-  # 5. Dummy Stock Server
   dummy_stock_server:
     build:
       context: .
@@ -53,7 +46,6 @@ services:
     ports:
       - "6789:6789"
 
-  # 6. Streamlit Dashboard
   dashboard:
     build:
       context: .

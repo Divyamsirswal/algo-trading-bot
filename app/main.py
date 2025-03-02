@@ -1,89 +1,79 @@
 import asyncio
 import json
 import logging
+import os
 
 from fastapi import FastAPI
 import websockets
 
-from app.websocket_client import connect_stock_api  # If you still need this
 from app.trading_logic import TradingStrategy
 from app.redis_client import RedisLogger
-from app.kafka_producer import create_kafka_producer  # Managed Kafka producer
+from app.kafka_producer import OrderProducer  # We'll use OrderProducer here
 
-# ----- Logging Configuration -----
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("app.log", mode='a')
+        logging.FileHandler("app.log", mode="a")
     ]
 )
 logger = logging.getLogger("TradingBot")
 
-# ----- FastAPI App -----
 app = FastAPI()
 
-# ----- Global Objects -----
+# Global objects
 strategy = TradingStrategy()
 logger_redis = RedisLogger()
-kafka_producer = None  # Will be created on startup
+kafka_producer = None  # Will be initialized on startup
 
-
-# ----- Background Task: WebSocket + Trading Logic -----
 async def process_stock_data():
     """
-    Continuously connects to a WebSocket server for stock data,
-    applies trading strategy, and sends orders to Kafka & Redis.
+    Connects to the dummy stock server, processes incoming data,
+    applies trading logic, sends orders to Kafka, and logs them in Redis.
     """
-    uri = "ws://localhost:6789"  # Update if you have a different endpoint
+    uri = "ws://localhost:6789"  # Dummy stock server endpoint; update if needed.
     while True:
         try:
             async with websockets.connect(uri) as websocket:
-                logger.info("Connected to stock API from main process.")
+                logger.info("Connected to stock API.")
                 while True:
                     message = await websocket.recv()
                     data = json.loads(message)
-
                     price = data.get("price")
                     if price is not None:
                         signal = strategy.generate_signal(price)
-                        if signal and kafka_producer:
+                        if signal:
                             order = {
                                 "symbol": data.get("symbol"),
                                 "action": signal,
                                 "price": price,
                                 "timestamp": data.get("timestamp")
                             }
-                            # Send to Kafka topic "orders" (example)
-                            kafka_producer.send("orders", order)
-                            kafka_producer.flush()
-                            # Log to Redis
+                            if kafka_producer:
+                                kafka_producer.send_order(order)
                             logger_redis.log_order(order)
-
                     await asyncio.sleep(0.1)
-
         except Exception as e:
             logger.error(f"Error in process_stock_data: {e}. Retrying in 5 seconds...")
             await asyncio.sleep(5)
 
-
-# ----- FastAPI Lifecycle Events -----
 @app.on_event("startup")
 async def startup_event():
     """
     On startup:
-    1. Create the Kafka producer (managed Kafka).
-    2. Start the background WebSocket task.
+      1. Create the Kafka producer using the OrderProducer (which now reads the environment variable).
+      2. Start the background task for processing stock data.
     """
     global kafka_producer
-    kafka_producer = create_kafka_producer()
-
-    # Launch the WebSocket data processing in the background
+    try:
+        kafka_producer = OrderProducer()
+        logger.info("Kafka producer created successfully.")
+    except Exception as ex:
+        logger.error(f"Failed to create Kafka producer: {ex}")
     asyncio.create_task(process_stock_data())
 
-
-# ----- FastAPI Endpoints -----
 @app.get("/")
 def read_root():
     return {"message": "Trading Bot is Running!"}
@@ -94,12 +84,8 @@ def health_check():
 
 @app.get("/send-test")
 def send_test():
-    """
-    Test endpoint to send a dummy message to Kafka.
-    """
     if kafka_producer:
-        kafka_producer.send("test-topic", {"msg": "Hello from /send-test!"})
-        kafka_producer.flush()
+        kafka_producer.send_order({"msg": "Hello from /send-test!"})
         return {"status": "Message sent to Kafka"}
     else:
         return {"error": "Kafka producer not initialized"}

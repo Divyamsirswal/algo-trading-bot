@@ -15,7 +15,6 @@ async def connect_stock_api():
                     message = await websocket.recv()
                     data = json.loads(message)
                     logging.info(f"Received data: {data}")
-                    # await process_stock_data(data)
         except (websockets.ConnectionClosedError, websockets.InvalidURI) as e:
             logging.error(f"WebSocket connection error: {e}. Retrying in 5 seconds...")
             await asyncio.sleep(5)  
