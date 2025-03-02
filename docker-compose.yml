@@ -7,26 +7,26 @@ services:
     ports:
       - "2181:2181"
 
-  kafka:
-    image: confluentinc/cp-kafka:latest
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Internal listener for container-to-container comms uses port 29092
-      # External listener for host access uses port 9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    ports:
-      - "9092:9092"
-      - "29092:29092"
+  # Kafka container is commented out since we're using a managed Kafka service.
+  # If you want to run Kafka locally for development, uncomment the following section.
+  # kafka:
+  #   image: confluentinc/cp-kafka:latest
+  #   depends_on:
+  #     - zookeeper
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+  #     KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #   ports:
+  #     - "9092:9092"
+  #     - "29092:29092"
 
   redis:
     image: redis:latest
-    # Map Redis container's port 6379 to host port 6380 to avoid conflicts
+    # Map container port 6379 to host port 6380 to avoid conflicts with any local Redis
     ports:
       - "6380:6379"
 
@@ -35,13 +35,13 @@ services:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - kafka
       - redis
     ports:
       - "8000:8000"
     environment:
-      # Make sure your Kafka producer code uses this environment variable:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      # Update this with your managed Kafka endpoint. For example:
+      # KAFKA_BOOTSTRAP_SERVERS=pkc-12345.us-west2.gcp.confluent.cloud:9092
+      - KAFKA_BOOTSTRAP_SERVERS=your-managed-kafka-endpoint:9092
 
   dummy_stock_server:
     build:
