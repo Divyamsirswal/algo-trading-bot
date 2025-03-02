@@ -1,6 +1,6 @@
 import streamlit as st
 import json
-import os
+import time
 
 ORDERS_FILE = "app/orders.json"
 
@@ -11,17 +11,16 @@ def load_orders():
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
-def main():
-    st.title("Trading Bot Dashboard")
+st.title("📊 Trading Bot Dashboard")
 
+while True:
     orders = load_orders()
+    
+    st.write("### Recent Orders")
     if orders:
-        st.write("### Recent Orders")
         for order in sorted(orders, key=lambda x: x["price"]):
             st.json(order)
     else:
-        st.write("No orders found.")
+        st.write("⚠️ No orders yet. Waiting for stock prices...")
 
-if __name__ == "__main__":
-    st.set_page_config(page_title="Trading Bot Dashboard", layout="wide")
-    main()
+    time.sleep(2)  # Refresh every 2 seconds

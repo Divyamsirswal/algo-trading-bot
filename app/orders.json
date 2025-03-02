@@ -1,1 +1,134 @@
-[]
+[
+    {
+        "price": 175.74,
+        "signal": "BUY"
+    },
+    {
+        "price": 120.03,
+        "signal": "SELL"
+    },
+    {
+        "price": 152.91,
+        "signal": "BUY"
+    },
+    {
+        "price": 101.21,
+        "signal": "SELL"
+    },
+    {
+        "price": 174.71,
+        "signal": "SELL"
+    },
+    {
+        "price": 184.46,
+        "signal": "BUY"
+    },
+    {
+        "price": 171.59,
+        "signal": "BUY"
+    },
+    {
+        "price": 164.89,
+        "signal": "BUY"
+    },
+    {
+        "price": 168.24,
+        "signal": "SELL"
+    },
+    {
+        "price": 172.62,
+        "signal": "SELL"
+    },
+    {
+        "price": 161.84,
+        "signal": "SELL"
+    },
+    {
+        "price": 117.65,
+        "signal": "SELL"
+    },
+    {
+        "price": 123.68,
+        "signal": "SELL"
+    },
+    {
+        "price": 105.63,
+        "signal": "SELL"
+    },
+    {
+        "price": 115.35,
+        "signal": "SELL"
+    },
+    {
+        "price": 121.55,
+        "signal": "SELL"
+    },
+    {
+        "price": 169.74,
+        "signal": "BUY"
+    },
+    {
+        "price": 158.29,
+        "signal": "BUY"
+    },
+    {
+        "price": 131.52,
+        "signal": "BUY"
+    },
+    {
+        "price": 121.76,
+        "signal": "SELL"
+    },
+    {
+        "price": 135.57,
+        "signal": "SELL"
+    },
+    {
+        "price": 189.98,
+        "signal": "BUY"
+    },
+    {
+        "price": 182.07,
+        "signal": "BUY"
+    },
+    {
+        "price": 157.24,
+        "signal": "BUY"
+    },
+    {
+        "price": 168.2,
+        "signal": "BUY"
+    },
+    {
+        "price": 119.88,
+        "signal": "SELL"
+    },
+    {
+        "price": 112.45,
+        "signal": "SELL"
+    },
+    {
+        "price": 106.52,
+        "signal": "SELL"
+    },
+    {
+        "price": 141.97,
+        "signal": "SELL"
+    },
+    {
+        "price": 170.81,
+        "signal": "BUY"
+    },
+    {
+        "price": 195.18,
+        "signal": "BUY"
+    },
+    {
+        "price": 109.08,
+        "signal": "BUY"
+    },
+    {
+        "price": 186.4,
+        "signal": "BUY"
+    }
+]

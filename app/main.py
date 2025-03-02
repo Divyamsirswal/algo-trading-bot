@@ -2,7 +2,8 @@ import csv
 import json
 import asyncio
 import websockets
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI
+import threading
 
 app = FastAPI()
 ORDERS_FILE = "app/orders.json"
@@ -18,13 +19,13 @@ class TradingStrategy:
         self.prices.append(price)
         if len(self.prices) > self.long_window:
             self.prices.pop(0)
-        
+
         if len(self.prices) < self.long_window:
             return None
 
         short_avg = sum(self.prices[-self.short_window:]) / self.short_window
         long_avg = sum(self.prices) / self.long_window
-        
+
         if short_avg > long_avg:
             return "BUY"
         elif short_avg < long_avg:
@@ -45,6 +46,27 @@ def save_order(order):
     with open(ORDERS_FILE, "w") as f:
         json.dump(orders, f, indent=4)
 
+# --- Auto Receive Stock Prices ---
+async def listen_to_stock_data():
+    uri = "ws://127.0.0.1:6789"  # Dummy stock server
+    async with websockets.connect(uri) as websocket:
+        while True:
+            message = await websocket.recv()
+            stock_data = json.loads(message)
+            price = stock_data["price"]
+            print(f"📈 Received Stock Price: {price}")  # 👈 Debug log
+            signal = strategy.generate_signal(price)
+            if signal:
+                order = {"price": price, "signal": signal}
+                save_order(order)
+                print(f"✅ Trade Executed: {order}")  # 👈 Debug log
+
+# --- Run WebSocket Listener in Background ---
+def start_stock_listener():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(listen_to_stock_data())
+
 @app.get("/")
 def read_root():
     return {"message": "Algorithmic Trading Bot Running"}
@@ -58,23 +80,8 @@ def get_orders():
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_text()
-            stock_data = json.loads(data)
-            price = stock_data["price"]
-            signal = strategy.generate_signal(price)
-            if signal:
-                order = {"price": price, "signal": signal}
-                save_order(order)
-                await websocket.send_text(json.dumps(order))
-    except Exception as e:
-        print(f"WebSocket error: {e}")
-    finally:
-        await websocket.close()
+# Start stock listener in a separate thread
+threading.Thread(target=start_stock_listener, daemon=True).start()
 
 if __name__ == "__main__":
     import uvicorn
