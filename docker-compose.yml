@@ -1,4 +1,7 @@
+version: "3.9"
+
 services:
+  # 1. Zookeeper
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     environment:
@@ -7,42 +10,42 @@ services:
     ports:
       - "2181:2181"
 
-  # Kafka container is commented out since we're using a managed Kafka service.
-  # If you want to run Kafka locally for development, uncomment the following section.
-  # kafka:
-  #   image: confluentinc/cp-kafka:latest
-  #   depends_on:
-  #     - zookeeper
-  #   environment:
-  #     KAFKA_BROKER_ID: 1
-  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-  #     KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-  #   ports:
-  #     - "9092:9092"
-  #     - "29092:29092"
+  # 2. Kafka
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+      - "29092:29092"
 
+  # 3. Redis
   redis:
     image: redis:latest
-    # Map container port 6379 to host port 6380 to avoid conflicts with any local Redis
     ports:
       - "6380:6379"
 
+  # 4. FastAPI App
   app:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
+      - kafka
       - redis
     ports:
       - "8000:8000"
-    environment:
-      # Update this with your managed Kafka endpoint. For example:
-      # KAFKA_BOOTSTRAP_SERVERS=pkc-12345.us-west2.gcp.confluent.cloud:9092
-      - KAFKA_BOOTSTRAP_SERVERS=your-managed-kafka-endpoint:9092
+    # environment: 
+    #   - ENV_VAR=production  # example if you have environment variables
 
+  # 5. Dummy Stock Server
   dummy_stock_server:
     build:
       context: .
@@ -50,6 +53,7 @@ services:
     ports:
       - "6789:6789"
 
+  # 6. Streamlit Dashboard
   dashboard:
     build:
       context: .
